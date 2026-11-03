@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+const google = { script: { get run() {
+  const api = "https://script.google.com/macros/s/AKfycbwR9nvL6dYT7r2-xoOzQVt59dJXvkK3tzkafaaIR1QpRakbPTl7d23JFZhEpSNNTVnx1A/exec";
+  let success = () => {}, failure = () => {};
+  // credentials: 'omit' keeps the visitor's Google accounts out of the request.
+  const invoke = async request => {
+    try {
+      const reply = await (await request).json();
+      if (reply.error) throw new Error(reply.error);
+      success(reply.result);
+    } catch (error) { failure(error); }
+  };
+  return {
+    withSuccessHandler(fn) { success = fn; return this; },
+    withFailureHandler(fn) { failure = fn; return this; },
+    orderCatalog() { invoke(fetch(api + '?api=orderCatalog', { credentials: 'omit' })); },
+    deliveryRate() { invoke(fetch(api + '?api=deliveryRate', { credentials: 'omit' })); },
+    placeOrder(input) {
+      invoke(fetch(api, { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(input) }));
+    }
+  };
+} } };
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order Yahyoung Ice</title>
+<style>
+:root {
+  --navy: #09234d;
+  --ink: #10254a;
+  --muted: #4a5f7d;
+  --line: #dbe5f1;
+  --line-strong: #9db8da;
+  --tint: #f0f6ff;
+  --page: #f4f7fb;
+  --blue: #0648b8;
+  --green: #11663f;
+  --green-bg: #e3f5ea;
+  --red: #a4251b;
+  --red-bg: #fdeae7;
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; min-height: 100vh; background: var(--page); }
+h1, h2, p { margin: 0; }
+header { background: var(--navy); color: white; }
+.header-inner, main { width: 100%; max-width: 640px; margin: 0 auto; padding-inline: 1rem; }
+.header-inner { padding-block: 1rem 1.25rem; }
+.brand { display: flex; align-items: center; gap: .6rem; margin-bottom: .9rem; font-weight: 700; }
+.brand svg { width: 34px; height: 34px; flex: none; }
+h1 { font-size: clamp(1.5rem, 5vw, 1.85rem); line-height: 1.2; letter-spacing: -.02em; }
+header p { margin-top: .25rem; color: #cfe2fb; }
+main { padding-block: 1rem 7rem; }
+.card { background: white; border: 1px solid var(--line); border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
+h2 { font-size: 1.05rem; margin-bottom: .7rem; }
+input, button { font: inherit; color: inherit; }
+input { width: 100%; min-height: 44px; padding: .55rem .7rem; background: white; border: 1px solid var(--line-strong); border-radius: 10px; }
+label { display: block; font-size: .875rem; font-weight: 600; }
+label input { margin-top: .3rem; font-weight: 400; font-size: 1rem; }
+.fields { display: grid; gap: .85rem; }
+.hint { font-size: .85rem; color: var(--muted); }
+button { min-height: 44px; padding: .5rem 1rem; border: 1px solid transparent; border-radius: 10px; font-weight: 650; cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, input:focus-visible, .segmented input:focus-visible + span { outline: 3px solid #2684ff; outline-offset: 2px; }
+.primary { background: var(--blue); color: white; }
+.secondary { background: white; border-color: var(--line-strong); color: #123a73; }
+#products { display: grid; gap: .65rem; }
+.product { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .75rem; background: var(--tint); border: 2px solid transparent; border-radius: 12px; }
+.product.selected { background: white; border-color: var(--blue); }
+.product label { font-size: 1rem; font-weight: 650; }
+.product small { display: block; font-size: .875rem; font-weight: 400; color: var(--muted); }
+.quantity { display: grid; grid-template-columns: 44px 54px 44px; gap: .3rem; }
+.quantity button { padding: 0; background: white; border-color: var(--line-strong); color: #123a73; font-size: 1.3rem; }
+.quantity button.add { background: var(--blue); border-color: var(--blue); color: white; }
+.quantity input { margin: 0; padding: .25rem; text-align: center; font-weight: 650; appearance: textfield; }
+.quantity input::-webkit-inner-spin-button { appearance: none; }
+fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+legend { padding: 0; margin-bottom: .3rem; font-size: .875rem; font-weight: 600; }
+.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+.segmented label { position: relative; font-size: 1rem; }
+.segmented input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.segmented span { display: flex; align-items: center; justify-content: center; min-height: 44px; background: white; border: 1px solid var(--line-strong); border-radius: 10px; font-weight: 600; }
+.segmented input:checked + span { background: var(--blue); border-color: var(--blue); color: white; }
+.bar { position: fixed; inset: auto 0 0; z-index: 4; background: white; border-top: 1px solid var(--line); box-shadow: 0 -6px 20px #09234d14; padding-bottom: env(safe-area-inset-bottom); }
+.bar-inner { max-width: 640px; margin: 0 auto; padding: .6rem 1rem; }
+.bar-total { display: grid; grid-template-columns: 1fr minmax(150px, 1fr); gap: 1rem; align-items: center; }
+#bag-count { display: block; font-size: .85rem; color: var(--muted); }
+#total { display: block; font-size: 1.35rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+#submit { min-height: 48px; width: 100%; }
+#status { margin-bottom: .5rem; padding: .5rem .75rem; border-radius: 10px; font-size: .875rem; background: var(--tint); color: var(--muted); }
+#status:empty { display: none; }
+#status.error { background: var(--red-bg); color: var(--red); }
+#done { text-align: center; padding-block: 1.75rem; }
+#done h2 { font-size: 1.35rem; color: var(--green); margin-bottom: .4rem; }
+.reference { margin: 1rem 0; padding: .75rem; background: var(--green-bg); border-radius: 10px; }
+.reference strong { display: block; font-size: 1.25rem; letter-spacing: .04em; }
+label:has(#zone) { margin-bottom: .85rem; }
+select { width: 100%; min-height: 44px; margin-top: .3rem; padding: .55rem .7rem; font: inherit; font-weight: 400; color: inherit; background: white; border: 1px solid var(--line-strong); border-radius: 10px; }
+#delivery { display: grid; gap: .85rem; margin-bottom: .85rem; }
+#delivery[hidden] { display: none; }
+#delivery-price { font-size: .875rem; color: var(--muted); }
+#delivery-price:empty { display: none; }
+h2 { display: flex; align-items: center; gap: .5rem; }
+.step { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 1.5rem; height: 1.5rem; background: var(--navy); color: white; border-radius: 50%; font-size: .8rem; }
+input:user-invalid { border-color: var(--red); }
+.choices { display: grid; gap: .4rem; margin-bottom: .85rem; }
+.choice { position: relative; display: block; font-size: 1rem; }
+.choice input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.choice > span { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 52px; padding: .5rem .8rem; background: white; border: 1px solid var(--line-strong); border-radius: 10px; font-weight: 600; }
+.choice small { font-weight: 400; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.choice input:checked + span { border: 2px solid var(--blue); background: var(--tint); }
+.choice input:disabled + span { opacity: .55; }
+.choice input:focus-visible + span { outline: 3px solid #2684ff; outline-offset: 2px; }
+.notice-card { text-align: center; padding-block: 1.75rem; }
+.notice-card p { margin-bottom: .75rem; color: var(--muted); }
+#done-note { margin-top: .75rem; font-size: .875rem; color: var(--muted); }
+@media (max-width: 640px) {
+  .header-inner { padding-block: .7rem .85rem; }
+  .brand { margin-bottom: .45rem; font-size: .875rem; }
+  .brand svg { width: 26px; height: 26px; }
+  header p { display: none; }
+  h1 { font-size: 1.35rem; }
+}
+</style>
+</head>
+<body>
+<header><div class="header-inner">
+<div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true">
+  <path fill="#091f43" stroke="#426d9c" d="M32 2 58 17v30L32 62 6 47V17Z"/>
+  <path fill="#d9f6ff" d="m32 8 20 11.5L32 31 12 19.5Z"/>
+  <path fill="#77cff3" d="M12 24l17 10v20L12 44Z"/>
+  <path fill="#319ee1" d="m52 24-17 10v20l17-10Z"/>
+  <path fill="none" stroke="#091f43" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" d="m22 19 10 6 10-6m-10 6v22"/>
+</svg><span>Yahyoung Purified Ice Cubes</span></div>
+<h1>Order Yahyoung ice</h1><p>Choose your bags and send your order to our team.</p>
+</div></header>
+<main>
+<form id="order-form">
+<section class="card"><h2><span class="step">1</span>Choose your ice</h2><div id="products"><p class="hint">Loading available ice…</p></div></section>
+<div id="order-steps" hidden>
+<section class="card"><h2><span class="step">2</span>Pickup or delivery</h2>
+<div class="choices">
+<label class="choice"><input type="radio" name="zone" value="pickup" checked><span>Store pickup<small>Free</small></span></label>
+<label class="choice"><input type="radio" name="zone" value="poblacion"><span>Delivery in Poblacion, Magsaysay<small>₱10.00</small></span></label>
+<label class="choice"><input type="radio" name="zone" value="outside" id="zone-outside"><span>Delivery outside Poblacion<small id="outside-rate">Per km</small></span></label>
+</div>
+<div id="delivery" hidden>
+<label>Complete delivery address<input name="address" maxlength="250"></label>
+<label id="distance-label" hidden>Estimated road distance from Yahyoung (km)<input name="distance" type="number" min="0.1" max="200" step="0.1"></label>
+<p id="delivery-price" role="status"></p>
+</div>
+</section>
+<section class="card"><h2><span class="step">3</span>Your details</h2>
+<div class="fields">
+<label>Your name<input name="customer" autocomplete="name" maxlength="100" required></label>
+<label>Mobile number<input name="mobile" type="tel" inputmode="numeric" autocomplete="tel" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX" title="11 digits starting with 09" required></label>
+<fieldset>
+<legend>Payment</legend>
+<div class="segmented">
+<label><input type="radio" name="method" value="Pay at pickup" checked><span>Pay at pickup</span></label>
+<label><input type="radio" name="method" value="GCash"><span>GCash</span></label>
+</div>
+</fieldset>
+<div id="gcash" class="fields" hidden>
+<p class="hint">Yahyoung will confirm payment instructions. If you already paid, enter your GCash reference for verification.</p>
+<label>GCash reference (optional)<input name="reference" inputmode="numeric" pattern="[0-9]{6,30}" title="6 to 30 digits"></label>
+</div>
+</div>
+</section>
+</div>
+<div class="bar" id="order-bar" hidden><div class="bar-inner">
+<p id="status" role="status"></p>
+<div class="bar-total">
+<p><small id="bag-count"></small><strong id="total"></strong></p>
+<button id="submit" class="primary" disabled>Place order</button>
+</div>
+</div></div>
+</form>
+<section id="done" class="card" hidden tabindex="-1">
+<h2>Order received</h2>
+<p>The Yahyoung team will contact you to confirm your order.</p>
+<div class="reference"><span class="hint">Your reference</span><strong id="done-reference"></strong></div>
+<p>Total <strong id="done-total"></strong></p>
+<p id="done-note">Keep this reference in case you need to ask about your order.</p>
+<button type="button" class="secondary" id="again" style="margin-top:1rem">Place another order</button>
+</section>
+</main>
+<script>
+const el = id => document.getElementById(id);
+const peso = cents => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(cents / 100);
+let products = [];
+let rate = 0;
+const form = el('order-form');
+const zone = () => form.elements.zone.value;
+function deliveryFee() {
+  if (zone() === 'poblacion') return 1000;
+  if (zone() === 'outside') return Math.round(Number(form.elements.distance.value) * rate);
+  return 0;
+}
+function showDelivery() {
+  const pickup = zone() === 'pickup';
+  const outside = zone() === 'outside';
+  el('outside-rate').textContent = rate ? peso(rate) + '/km' : 'Unavailable';
+  el('zone-outside').disabled = !rate;
+  el('delivery').hidden = pickup;
+  el('distance-label').hidden = !outside;
+  form.elements.address.required = !pickup;
+  form.elements.distance.required = outside;
+  form.elements.distance.disabled = !outside;
+  const cash = form.querySelector('input[value="Pay at pickup"], input[value="Pay on delivery"]');
+  cash.value = pickup ? 'Pay at pickup' : 'Pay on delivery';
+  cash.nextElementSibling.textContent = cash.value;
+  showTotal();
+}
+form.querySelectorAll('input[name="zone"]').forEach(input => input.addEventListener('change', showDelivery));
+form.elements.distance.addEventListener('input', showTotal);
+google.script.run.withSuccessHandler(value => { rate = value; showDelivery(); }).deliveryRate();
+let cart = {};
+let attempt;
+const selected = () => products.map(({ sku, cents }) => ({ sku, cents, qty: cart[sku] || 0 })).filter(item => item.qty > 0);
+function setStatus(text, error) {
+  el('status').textContent = text;
+  el('status').className = error ? 'error' : '';
+}
+function showTotal() {
+  const items = selected();
+  const bags = items.reduce((sum, item) => sum + item.qty, 0);
+  const fee = deliveryFee();
+  el('bag-count').textContent = bags + (bags === 1 ? ' bag' : ' bags') + (fee ? ' + ' + peso(fee) + ' delivery' : '');
+  el('delivery-price').textContent = zone() === 'outside'
+    ? 'Estimated fee ' + peso(fee) + '. Our team will verify the distance before confirming.'
+    : '';
+  el('total').textContent = peso(items.reduce((sum, item) => sum + item.qty * item.cents, fee));
+  products.forEach((product, index) => {
+    el('qty-' + index).closest('.product').classList.toggle('selected', (cart[product.sku] || 0) > 0);
+  });
+}
+function showPayment() {
+  el('gcash').hidden = el('order-form').elements.method.value !== 'GCash';
+  el('gcash').querySelector('input').disabled = el('gcash').hidden;
+}
+function renderProducts() {
+  el('products').replaceChildren();
+  if (!products.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = 'We aren\'t taking online orders right now. Please check back soon.';
+    el('products').append(empty);
+  }
+  products.forEach((product, index) => {
+    const row = document.createElement('article');
+    row.className = 'product';
+    const label = document.createElement('label');
+    label.htmlFor = 'qty-' + index;
+    label.textContent = product.name;
+    const price = document.createElement('small');
+    price.textContent = peso(product.cents) + ' per bag';
+    label.append(price);
+    const quantity = document.createElement('input');
+    Object.assign(quantity, { id: 'qty-' + index, type: 'number', min: 0, max: 999, step: 1, inputMode: 'numeric', value: 0 });
+    quantity.addEventListener('input', () => {
+      cart[product.sku] = Math.max(0, Math.min(999, Math.floor(Number(quantity.value)) || 0));
+      setStatus('');
+      showTotal();
+    });
+    quantity.addEventListener('change', () => { quantity.value = cart[product.sku] || 0; });
+    const stepper = document.createElement('div');
+    stepper.className = 'quantity';
+    for (const [delta, symbol, action] of [[-1, '−', 'Remove'], [1, '+', 'Add']]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = symbol;
+      if (delta === 1) button.className = 'add';
+      button.setAttribute('aria-label', action + ' one bag of ' + product.name);
+      button.addEventListener('click', () => {
+        cart[product.sku] = Math.max(0, Math.min(999, (cart[product.sku] || 0) + delta));
+        quantity.value = cart[product.sku];
+        setStatus('');
+        showTotal();
+      });
+      if (delta === 1) stepper.append(quantity);
+      stepper.append(button);
+    }
+    row.append(label, stepper);
+    el('products').append(row);
+  });
+}
+el('order-form').addEventListener('change', showPayment);
+showPayment();
+showTotal();
+function loadCatalog() {
+  google.script.run.withSuccessHandler(catalog => {
+    products = catalog;
+    renderProducts();
+    showTotal();
+    el('submit').disabled = !catalog.length;
+    el('order-steps').hidden = !catalog.length;
+    el('order-bar').hidden = !catalog.length;
+  }).withFailureHandler(() => {
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'secondary';
+    retry.textContent = 'Try again';
+    retry.addEventListener('click', () => {
+      el('products').textContent = 'Loading available ice…';
+      loadCatalog();
+    });
+    const note = document.createElement('p');
+    note.className = 'hint';
+    note.style.marginBottom = '.6rem';
+    note.textContent = 'We couldn\'t load the ice list. Check your connection and try again.';
+    el('products').replaceChildren(note, retry);
+  }).orderCatalog();
+}
+loadCatalog();
+// Checked before the browser's field validation so an empty order points at step 1 first.
+el('submit').addEventListener('click', event => {
+  if (selected().length) return;
+  event.preventDefault();
+  setStatus('Choose at least one bag.', true);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+el('order-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget));
+  data.items = selected();
+  data.fee = deliveryFee();
+  if (!data.items.length) return setStatus('Choose at least one bag.', true);
+  const signature = JSON.stringify(data);
+  if (attempt?.signature !== signature) attempt = { signature, id: crypto.randomUUID() };
+  el('submit').disabled = true;
+  setStatus('Sending order…');
+  google.script.run.withSuccessHandler(order => {
+    el('order-form').hidden = true;
+    el('done-reference').textContent = order.id.slice(0, 8).toUpperCase();
+    el('done-total').textContent = peso(Math.round(order.total * 100));
+    el('done').hidden = false;
+    window.scrollTo(0, 0);
+    el('done').focus({ preventScroll: true });
+  }).withFailureHandler(error => {
+    el('submit').disabled = false;
+    setStatus(error.message, true);
+  }).placeOrder({ ...data, id: attempt.id });
+});
+el('again').addEventListener('click', () => {
+  attempt = undefined;
+  cart = {};
+  el('order-form').reset();
+  renderProducts();
+  showPayment();
+  showDelivery();
+  setStatus('');
+  el('submit').disabled = !products.length;
+  el('done').hidden = true;
+  el('order-form').hidden = false;
+  window.scrollTo(0, 0);
+});
+</script>
+</body>
+</html>
