@@ -72,6 +72,8 @@ button:focus-visible, input:focus-visible, .segmented input:focus-visible + span
 .secondary { background: white; border-color: var(--line-strong); color: #123a73; }
 #products { display: grid; gap: .65rem; }
 .product { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .75rem; background: var(--tint); border: 2px solid transparent; border-radius: 12px; }
+.product.has-photo { grid-template-columns: 64px minmax(0, 1fr) auto; }
+.product-photo { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: white; }
 .product.selected { background: white; border-color: var(--blue); }
 .product label { font-size: 1rem; font-weight: 650; }
 .product small { display: block; font-size: .875rem; font-weight: 400; color: var(--muted); }
@@ -286,6 +288,14 @@ function renderProducts() {
       });
       if (delta === 1) stepper.append(quantity);
       stepper.append(button);
+    }
+    if (product.photo) {
+      const photo = document.createElement('img');
+      photo.className = 'product-photo';
+      photo.src = product.photo;
+      photo.alt = '';
+      row.classList.add('has-photo');
+      row.append(photo);
     }
     row.append(label, stepper);
     el('products').append(row);
