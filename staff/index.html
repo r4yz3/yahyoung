@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="../icon-192.png">
 <style>
 #install-app { position: fixed; z-index: 70; top: 12px; right: 16px; padding: .45rem .9rem; border: 1px solid #c9a24a; border-radius: 99px; background: #09234d; color: #f6d98b; font: 600 .85rem system-ui, sans-serif; cursor: pointer; box-shadow: 0 6px 18px rgba(9, 35, 77, .25); }
+#install-app.in-header { position: static; flex: none; min-height: 34px; padding: .3rem .7rem; font-size: .8rem; box-shadow: none; order: 4; }
 </style>
 <script>
 if ('serviceWorker' in navigator) addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
@@ -21,17 +22,23 @@ addEventListener('beforeinstallprompt', event => {
   button.type = 'button';
   button.textContent = 'Install app';
   button.onclick = () => { button.remove(); event.prompt(); };
-  document.body.append(button);
+  const signOut = document.getElementById('sign-out');
+  if (signOut) {
+    button.classList.add('in-header');
+    signOut.before(button);
+  } else document.body.append(button);
 });
 addEventListener('appinstalled', () => { document.getElementById('install-app')?.remove(); });
 </script>
 <style>
-#sign-in { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: #09234d; }
+#sign-in { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: radial-gradient(circle at 50% 20%, #164a93, #09234d 60%); }
 #sign-in[hidden] { display: none; }
-#sign-in > div { display: grid; justify-items: center; gap: .75rem; width: min(100%, 380px); padding: 2rem 1.25rem; border-radius: 16px; background: white; color: #10254a; text-align: center; }
+#sign-in > div { display: grid; justify-items: center; gap: .85rem; width: min(100%, 380px); padding: 2.25rem 1.5rem; border-radius: 20px; border-top: 3px solid #c9a24a; background: white; color: #10254a; text-align: center; box-shadow: 0 24px 60px #0000004d; }
 #sign-in h1 { margin: 0; font-size: 1.4rem; }
 #sign-in p { margin: 0; color: #4a5f7d; }
-#sign-out { padding: .3rem .7rem; font-size: .8rem; background: transparent; color: inherit; border: 1px solid currentColor; border-radius: 999px; cursor: pointer; }
+#sign-out { min-height: 34px; padding: .3rem .7rem; font-size: .8rem; font-weight: 600; background: transparent; color: #cfe2fb; border: 1px solid #ffffff40; border-radius: 10px; cursor: pointer; }
+#sign-out:hover { background: #ffffff14; color: white; }
+@media (max-width: 859px) { #sign-out { flex: none; } .topbar-inner { gap: .5rem !important; } .topbar-inner .brand { margin-right: auto; } }
 </style>
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
@@ -529,6 +536,69 @@ dialog h2 { font-size: 1.25rem; margin-bottom: .75rem; }
   #expense-list td:nth-child(2) { grid-area: 2 / 1; }
   #expense-list td:nth-child(1) { grid-area: 2 / 2; text-align: right; }
   #expense-list td:nth-child(4) { grid-area: 3 / 1 / 3 / -1; }
+}
+
+/* Finish: one set of depth, motion and accent rules */
+:root { --gold: #c9a24a; --gold-soft: #f6d98b; --shadow-sm: 0 1px 2px #09234d0f, 0 1px 3px #09234d0a; --shadow-md: 0 6px 20px #09234d14; }
+body { -webkit-font-smoothing: antialiased; }
+.card { border-color: #e4ebf4; box-shadow: var(--shadow-sm); }
+input, select, button, .product, .segmented span { transition: background-color .15s, border-color .15s, box-shadow .15s, transform .08s; }
+input:hover:not(:focus), select:hover:not(:focus) { border-color: #6f93c2; }
+input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #0648b81f; outline: none; }
+input::placeholder { color: #71839c; }
+button:active:not(:disabled) { transform: translateY(1px); }
+.primary { background: linear-gradient(180deg, #0a55d0, var(--blue)); box-shadow: 0 1px 2px #05398f4d, inset 0 1px 0 #ffffff26; }
+.product { border-width: 1px; border-color: transparent; }
+.product.selected { box-shadow: 0 0 0 1px var(--blue), var(--shadow-sm); }
+dialog { box-shadow: 0 24px 60px #071a3c4d; }
+dialog[open] { animation: rise .18s ease-out; }
+dialog::backdrop { backdrop-filter: blur(2px); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { *, dialog[open] { animation: none !important; transition: none !important; } }
+.view:not([hidden]) { animation: rise .16s ease-out; }
+.metric { border-color: #e4ebf4; box-shadow: var(--shadow-sm); }
+.metric small { font-weight: 500; }
+.metric strong { letter-spacing: -.01em; }
+.metric.attention { border-color: #ecd49c; box-shadow: inset 3px 0 0 var(--gold); }
+th { text-transform: uppercase; font-size: .7rem; letter-spacing: .04em; }
+tbody tr { transition: background-color .12s; }
+@media (hover: hover) { tbody tr:hover { background: #f7faff; } }
+.empty { margin: .25rem 0; border: 1px dashed var(--line); border-radius: 12px; background: #fafcff; }
+.badge { padding: .15rem .6rem; }
+.page-head h1 { font-weight: 750; }
+#toast { border-left: 3px solid var(--gold); }
+.quantity button:disabled { opacity: .4; }
+#total { letter-spacing: -.02em; }
+
+/* Sidebar */
+@media (min-width: 860px) {
+  .topbar { background: linear-gradient(180deg, #0b2a5c, var(--navy) 55%); }
+  .nav button { min-height: 42px; color: #d5e5fb; font-weight: 550; }
+  .nav button[aria-current="page"] { background: #ffffff1a; color: white; box-shadow: inset 3px 0 0 var(--gold-soft); }
+  .nav button[aria-current="page"] svg { color: var(--gold-soft); }
+  .topbar-inner #role { order: 3; margin-top: auto; }
+  .topbar-inner #sign-out { order: 4; align-self: stretch; min-height: 38px; }
+  #role { background: #ffffff14; color: var(--gold-soft); }
+}
+@media (max-width: 859px) {
+  .nav button[aria-current="page"] svg { transform: translateY(-1px); }
+  body[data-screen="checkout"] #offline-bar { bottom: calc(var(--tabbar) + 5.5rem + env(safe-area-inset-bottom)); }
+  .nav { box-shadow: 0 -4px 16px #09234d12; }
+  body:has(#install-app) .brand strong { display: none; }
+}
+
+/* Consignment tables read as labelled rows on phones */
+@media (max-width: 720px) {
+  #consignment-list table, #consignment-list tbody, #consignment-people table, #consignment-people tbody { display: block; }
+  #consignment-list thead, #consignment-people thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  #consignment-list tr, #consignment-people tr { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem .75rem; padding: .75rem 0; border-bottom: 1px solid var(--line); }
+  #consignment-list tr:last-child, #consignment-people tr:last-child { border-bottom: 0; }
+  #consignment-list td, #consignment-people td { display: block; padding: 0; border: 0; text-align: left; white-space: normal; }
+  #consignment-list td::before, #consignment-people td::before { content: attr(data-label); display: block; color: var(--muted); font-size: .72rem; }
+  #consignment-list td:last-child { grid-column: 1 / -1; }
+  #consignment-list td:last-child::before { display: none; }
+  #consignment-list .consignment-actions { justify-content: stretch; }
+  #consignment-list .consignment-actions button { flex: 1; }
 }
 .workbook-link:not([hidden]) { display: inline-flex; align-items: center; min-height: 44px; padding: .55rem .85rem; border: 1px solid var(--line); border-radius: 10px; background: white; font-weight: 650; text-decoration: none; }
 </style>
@@ -1393,7 +1463,7 @@ function render(desk) {
   el('nav').hidden = false;
   const [title, description] = workspaces[desk.role];
   el('workspace-title').textContent = title;
-  el('workspace-description').textContent = description;
+  el('workspace-description').textContent = new Date().toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', month: 'long', day: 'numeric' }) + '. ' + description;
   const workbookLink = el('workbook-link');
   workbookLink.hidden = !desk.workbookUrl;
   if (desk.workbookUrl) workbookLink.href = desk.workbookUrl;
@@ -1464,6 +1534,7 @@ function renderProducts() {
       cart[product.sku] = Math.max(0, Math.min(999, Math.floor(Number(qty.value)) || 0));
     });
     qty.addEventListener('change', () => { qty.value = cart[product.sku] || 0; });
+    qty.addEventListener('focus', () => qty.select());
     const quantity = document.createElement('div');
     quantity.className = 'quantity';
     for (const [delta, symbol, action] of [[-1, '−', 'Remove'], [1, '+', 'Add']]) {
@@ -1721,6 +1792,9 @@ function updateTotal() {
   const bags = lines.reduce((sum, item) => sum + item.qty, 0);
   el('bag-count').textContent = bags + (bags === 1 ? ' bag' : ' bags');
   el('total').textContent = peso(total());
+  document.querySelectorAll('#products .quantity').forEach((box, index) => {
+    box.querySelector('button').disabled = !(cart[catalog[index].sku] > 0);
+  });
   catalog.forEach((product, index) => {
     el('qty-' + index).closest('.product').classList.toggle('selected', (cart[product.sku] || 0) > 0);
   });

@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
 #install-app { position: fixed; z-index: 70; top: 12px; right: 16px; padding: .45rem .9rem; border: 1px solid #c9a24a; border-radius: 99px; background: #09234d; color: #f6d98b; font: 600 .85rem system-ui, sans-serif; cursor: pointer; box-shadow: 0 6px 18px rgba(9, 35, 77, .25); }
+#install-app.in-header { position: static; flex: none; min-height: 34px; padding: .3rem .7rem; font-size: .8rem; box-shadow: none; order: 4; }
 </style>
 <script>
 if ('serviceWorker' in navigator) addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
@@ -21,7 +22,11 @@ addEventListener('beforeinstallprompt', event => {
   button.type = 'button';
   button.textContent = 'Install app';
   button.onclick = () => { button.remove(); event.prompt(); };
-  document.body.append(button);
+  const signOut = document.getElementById('sign-out');
+  if (signOut) {
+    button.classList.add('in-header');
+    signOut.before(button);
+  } else document.body.append(button);
 });
 addEventListener('appinstalled', () => { document.getElementById('install-app')?.remove(); });
 </script>
@@ -80,6 +85,7 @@ header { background: var(--navy); color: white; }
 h1 { font-size: clamp(1.5rem, 5vw, 1.85rem); line-height: 1.2; letter-spacing: -.02em; }
 header p { margin-top: .25rem; color: #cfe2fb; }
 main { padding-block: 1rem 7rem; }
+.card { box-shadow: 0 1px 2px #09234d0f, 0 1px 3px #09234d0a; }
 .card { background: white; border: 1px solid var(--line); border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
 h2 { font-size: 1.05rem; margin-bottom: .7rem; }
 input, button { font: inherit; color: inherit; }
@@ -152,6 +158,29 @@ input:user-invalid { border-color: var(--red); }
   header p { display: none; }
   h1 { font-size: 1.35rem; }
 }
+
+/* Finish: one set of depth, motion and accent rules */
+:root { --gold: #c9a24a; --gold-soft: #f6d98b; --shadow-sm: 0 1px 2px #09234d0f, 0 1px 3px #09234d0a; --shadow-md: 0 6px 20px #09234d14; }
+body { -webkit-font-smoothing: antialiased; }
+.card { border-color: #e4ebf4; box-shadow: var(--shadow-sm); }
+input, select, button, .product, .segmented span { transition: background-color .15s, border-color .15s, box-shadow .15s, transform .08s; }
+input:hover:not(:focus), select:hover:not(:focus) { border-color: #6f93c2; }
+input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #0648b81f; outline: none; }
+input::placeholder { color: #71839c; }
+button:active:not(:disabled) { transform: translateY(1px); }
+.primary { background: linear-gradient(180deg, #0a55d0, var(--blue)); box-shadow: 0 1px 2px #05398f4d, inset 0 1px 0 #ffffff26; }
+.product { border-width: 1px; border-color: transparent; }
+.product.selected { box-shadow: 0 0 0 1px var(--blue), var(--shadow-sm); }
+dialog { box-shadow: 0 24px 60px #071a3c4d; }
+dialog[open] { animation: rise .18s ease-out; }
+dialog::backdrop { backdrop-filter: blur(2px); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { *, dialog[open] { animation: none !important; transition: none !important; } }
+header { background: linear-gradient(160deg, #0b2f66, var(--navy) 70%); }
+header h1 { font-weight: 750; }
+.step { background: var(--gold); color: var(--navy); font-weight: 700; }
+.product.selected { background: white; }
+#install-app { top: auto; bottom: 88px; }
 </style>
 </head>
 <body>
