@@ -131,7 +131,7 @@ const google = { script: { get run() {
     withSuccessHandler(fn) { success = fn; return this; },
     withFailureHandler(fn) { failure = fn; return this; }
   };
-  for (const action of ['loadDesk', 'listOrders', 'updateOrderStatus', 'deliveryRate', 'saveDeliveryRate', 'listStaff', 'saveStaff', 'listAdminProducts', 'saveProduct', 'listSpecialSales', 'saveSpecialSale', 'postSale', 'postExpense', 'linkBirReference']) {
+  for (const action of ['loadDesk', 'listOrders', 'updateOrderStatus', 'deliveryRate', 'saveDeliveryRate', 'listStaff', 'saveStaff', 'listAdminProducts', 'saveProduct', 'listSpecialSales', 'saveSpecialSale', 'listConsignments', 'releaseConsignment', 'returnConsignment', 'payConsignment', 'postSale', 'postExpense', 'linkBirReference']) {
     handlers[action] = input => { invoke(action, input); };
   }
   return handlers;
@@ -377,6 +377,13 @@ dialog h2 { font-size: 1.25rem; margin-bottom: .75rem; }
 .order-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 .order-head strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .order-tags { display: flex; flex-wrap: wrap; gap: .35rem; }
+#consignment .card { margin-top: 1rem; }
+#consignment .card-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .5rem; }
+.consignment-open { display: flex; align-items: center; gap: .4rem; font-size: .875rem; font-weight: 400; }
+.consignment-open input { width: auto; margin: 0; }
+.consignment-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }
+#consignment-dialog { width: min(92vw, 420px); border: 0; border-radius: 16px; padding: 1.25rem; }
+#consignment-action { display: grid; gap: .75rem; }
 .price-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; margin-bottom: .75rem; }
 .price-was { margin-right: .35rem; color: var(--muted); font-weight: 400; text-decoration: line-through; }
 .badge.sale { margin-left: .4rem; background: var(--navy); color: #f6d98b; letter-spacing: .03em; }
@@ -543,6 +550,7 @@ dialog h2 { font-size: 1.25rem; margin-bottom: .75rem; }
 <button type="button" id="nav-more" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16 M4 12h16 M4 17h16"/></svg><span>More</span></button>
 <button type="button" data-view="expenses" id="expenses-link"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6"/></svg><span>Expenses</span></button>
 <button type="button" data-view="products-admin"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 9 5v8l-9 5-9-5V8z M3 8l9 5 9-5 M12 13v8"/></svg><span>Products</span></button>
+<button type="button" data-view="consignment"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v10H3z M14 10h4l3 3v4h-7z M7 20h.01 M17 20h.01"/></svg><span>Consignment</span></button>
 <button type="button" data-view="special-admin"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z M7.5 8.5h.01"/></svg><span>Special sales</span></button>
 <button type="button" data-view="staff-admin"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M2 21a7 7 0 0 1 14 0 M16 3.5a4 4 0 0 1 0 7 M18 14.5a7 7 0 0 1 4 6.5"/></svg><span>Staff access</span></button>
 <button type="button" data-view="analytics"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4v16h18 M6 15l5-5 4 3 5-7"/></svg><span>Analytics</span></button>
@@ -683,6 +691,37 @@ dialog h2 { font-size: 1.25rem; margin-bottom: .75rem; }
 </form>
 <p id="product-status" class="notice info" role="status"></p>
 <ul id="product-admin-list"></ul>
+</section>
+<section id="consignment" class="view" hidden>
+<div class="page-head"><div><h1 tabindex="-1">Consignment</h1><p>Track product released to people who pay later. Money counts as a sale only when it is received.</p></div></div>
+<div class="metrics" id="consignment-totals"></div>
+<form id="consignment-form" class="card" hidden>
+<h2>Release product</h2>
+<div class="filters">
+<label>Consignee<input name="consignee" required maxlength="100" placeholder="Person or store"></label>
+<label>Mobile<input name="mobile" inputmode="numeric" maxlength="11" placeholder="Optional"></label>
+<label>Product<select name="sku" id="consignment-sku" required></select></label>
+<label>Bags released<input name="qty" type="number" min="1" max="9999" step="1" required></label>
+<label>Price per bag (PHP)<input name="price" id="consignment-price" type="number" min="0.01" step="0.01" required></label>
+</div>
+<div class="form-foot"><button class="primary" id="consignment-save">Record release</button></div>
+</form>
+<p id="consignment-status" class="notice info" role="status"></p>
+<div class="card"><h2>Balance by consignee</h2><div id="consignment-people"></div></div>
+<div class="card">
+<div class="card-head"><h2>Releases</h2><label class="consignment-open"><input type="checkbox" id="consignment-all"> Show settled</label></div>
+<div id="consignment-list"></div>
+</div>
+<dialog id="consignment-dialog">
+<form id="consignment-action">
+<h2 id="consignment-action-title"></h2>
+<p id="consignment-action-detail" class="muted"></p>
+<label id="consignment-amount-label"><span id="consignment-amount-name"></span><input id="consignment-amount" type="number" min="0.01" step="0.01" required></label>
+<label id="consignment-method-field">Paid by<select id="consignment-method"><option>Cash</option><option>GCash</option></select></label>
+<p id="consignment-action-status" class="notice error" role="alert"></p>
+<div class="form-foot"><button class="primary" id="consignment-confirm">Save</button><button type="button" class="secondary" id="consignment-close">Cancel</button></div>
+</form>
+</dialog>
 </section>
 <section id="special-admin" class="view" hidden>
 <div class="page-head"><div><h1 tabindex="-1">Special sales</h1><p>Create limited offers. A cashier applies one to a sale at checkout, so regular prices stay unchanged.</p></div></div>
@@ -1313,6 +1352,8 @@ function render(desk) {
   analyticsDays = desk.analytics || [];
   if (desk.analytics) renderAnalytics();
   if (!offlineMode && desk.role === 'Owner') loadSpecialSales();
+  if (!offlineMode && desk.role !== 'Cashier') loadConsignments();
+  el('consignment-form').hidden = desk.role !== 'Owner';
   if (!offlineMode && desk.role === 'Owner') google.script.run.withSuccessHandler(renderAdminProducts)
     .withFailureHandler(error => { el('product-status').textContent = error.message; }).listAdminProducts();
   if (!offlineMode && desk.role === 'Owner') loadStaff();
@@ -1327,12 +1368,14 @@ function render(desk) {
   el('role').textContent = desk.role;
   el('role').hidden = false;
   catalog = desk.products;
+  renderConsignmentProducts();
   const selling = ['Owner','Cashier'].includes(desk.role);
   const canExpense = ['Owner', 'Bookkeeper'].includes(desk.role);
   available = offlineMode ? ['checkout', 'history'] : [
     ...(desk.finance ? ['workspace'] : []),
     ...(selling ? ['checkout'] : []),
     'history', 'online-orders',
+    ...(desk.role !== 'Cashier' ? ['consignment'] : []),
     ...(desk.role === 'Owner' ? ['products-admin', 'special-admin', 'staff-admin'] : []),
     ...(desk.expenses ? ['expenses'] : []),
     ...(desk.finance ? ['finance', 'analytics'] : [])
@@ -1474,6 +1517,7 @@ function renderFinance(finance, expenses) {
     ['Due at checkout', peso(finance.due / 100), finance.due > 0],
     ['Recorded expenses', peso(expenses.total)]
   ];
+  if (finance.consignmentCents) totals.push(['Unpaid consignment', peso(finance.consignmentCents / 100), true]);
   renderMetrics('finance-totals', totals);
   renderMetrics('overview-totals', totals);
   renderTable('payment-totals', [['Method'], ['Sales', 'right'], ['Share', 'right']], ['Cash', 'GCash', 'Credit'].map(method => {
@@ -1854,6 +1898,124 @@ el('offline-sync').addEventListener('click', syncQueue);
 addEventListener('online', () => { if (offlineMode) refresh(); else syncQueue(); updateOfflineBar(); });
 addEventListener('offline', updateOfflineBar);
 setInterval(syncQueue, 60000);
+
+// ---------- Consignment ----------
+let consignments = [];
+let consignmentAction;
+function renderConsignmentProducts() {
+  const select = el('consignment-sku');
+  const current = select.value;
+  select.replaceChildren(...catalog.map(product => new Option(product.name, product.sku)));
+  if (catalog.some(product => product.sku === current)) select.value = current;
+  const product = catalog.find(entry => entry.sku === select.value);
+  if (product && !el('consignment-price').value) el('consignment-price').value = product.cents / 100;
+}
+el('consignment-sku').addEventListener('change', event => {
+  el('consignment-price').value = catalog.find(product => product.sku === event.target.value).cents / 100;
+});
+function loadConsignments() {
+  google.script.run.withSuccessHandler(entries => {
+    consignments = entries;
+    renderConsignments();
+  }).withFailureHandler(error => setNotice('consignment-status', error.message, 'error')).listConsignments();
+}
+function renderConsignments() {
+  const sum = pick => consignments.reduce((total, entry) => total + pick(entry), 0);
+  const bagsOut = sum(entry => entry.balanceCents > 0 ? entry.qty - entry.returned : 0);
+  renderMetrics('consignment-totals', [
+    ['Released value', peso(sum(entry => entry.qty * entry.cents) / 100)],
+    ['Returned value', peso(sum(entry => entry.returned * entry.cents) / 100)],
+    ['Paid', peso(sum(entry => entry.paidCents) / 100)],
+    ['Unpaid balance', peso(sum(entry => entry.balanceCents) / 100), sum(entry => entry.balanceCents) > 0],
+    ['Bags on open releases', String(bagsOut)]
+  ]);
+  const people = new Map();
+  for (const entry of consignments) {
+    const person = people.get(entry.consignee) || { released: 0, paid: 0, balance: 0, mobile: entry.mobile };
+    person.released += (entry.qty - entry.returned) * entry.cents;
+    person.paid += entry.paidCents;
+    person.balance += entry.balanceCents;
+    people.set(entry.consignee, person);
+  }
+  renderTable('consignment-people', [['Consignee'], ['Mobile'], ['Kept value', 'right'], ['Paid', 'right'], ['Balance', 'right']],
+    [...people].sort((a, b) => b[1].balance - a[1].balance).map(([name, person]) =>
+      [name, person.mobile || '–', peso(person.released / 100), peso(person.paid / 100), peso(person.balance / 100)]),
+    'No product released yet.');
+  const shown = el('consignment-all').checked ? consignments : consignments.filter(entry => entry.balanceCents > 0);
+  renderTable('consignment-list', [['Date'], ['Consignee'], ['Product'], ['Released', 'right'], ['Returned', 'right'], ['Paid', 'right'], ['Balance', 'right'], ['', 'right']],
+    shown.map(entry => {
+      const actions = document.createElement('div');
+      actions.className = 'consignment-actions';
+      if (deskRole === 'Owner' && entry.balanceCents > 0) {
+        for (const [text, mode] of [['Payment', 'pay'], ['Return', 'return']]) {
+          const button = Object.assign(document.createElement('button'), { type: 'button', className: 'secondary', textContent: text });
+          button.setAttribute('aria-label', text + ' for ' + entry.consignee + ', ' + entry.product);
+          button.addEventListener('click', () => openConsignmentAction(entry, mode));
+          actions.append(button);
+        }
+      }
+      return [entry.date, entry.consignee, entry.product + ' @ ' + peso(entry.cents / 100), String(entry.qty), String(entry.returned), peso(entry.paidCents / 100), peso(entry.balanceCents / 100), actions];
+    }), consignments.length ? 'Everything released has been settled.' : 'No product released yet.');
+}
+el('consignment-all').addEventListener('change', renderConsignments);
+function openConsignmentAction(entry, mode) {
+  const paying = mode === 'pay';
+  consignmentAction = { entry, mode, paymentId: crypto.randomUUID() };
+  el('consignment-action-title').textContent = (paying ? 'Record payment from ' : 'Record return from ') + entry.consignee;
+  el('consignment-action-detail').textContent = paying
+    ? entry.product + '. Balance ' + peso(entry.balanceCents / 100) + '. This is added to your sales.'
+    : entry.product + '. ' + (entry.qty - entry.returned) + ' bags still out, ' + peso(entry.balanceCents / 100) + ' unpaid.';
+  el('consignment-amount-name').textContent = paying ? 'Amount received (PHP)' : 'Bags returned';
+  const amount = el('consignment-amount');
+  amount.value = paying ? entry.balanceCents / 100 : '';
+  amount.step = paying ? '0.01' : '1';
+  amount.min = paying ? '0.01' : '1';
+  amount.max = paying ? entry.balanceCents / 100 : entry.qty - entry.returned;
+  el('consignment-method-field').hidden = !paying;
+  setNotice('consignment-action-status', '', 'error');
+  el('consignment-dialog').showModal();
+}
+el('consignment-close').addEventListener('click', () => el('consignment-dialog').close());
+el('consignment-action').addEventListener('submit', event => {
+  event.preventDefault();
+  const { entry, mode, paymentId } = consignmentAction;
+  const value = Number(el('consignment-amount').value);
+  const button = el('consignment-confirm');
+  button.disabled = true;
+  const run = google.script.run.withSuccessHandler(() => {
+    button.disabled = false;
+    el('consignment-dialog').close();
+    notify(mode === 'pay' ? 'Payment recorded.' : 'Return recorded.');
+    refresh();
+  }).withFailureHandler(error => {
+    button.disabled = false;
+    setNotice('consignment-action-status', error.message, 'error');
+  });
+  if (mode === 'pay') run.payConsignment({ id: entry.id, paymentId, cents: Math.round(value * 100), method: el('consignment-method').value });
+  else run.returnConsignment({ id: entry.id, from: entry.returned, bags: value });
+});
+let releaseAttempt;
+el('consignment-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const input = { consignee: form.elements.consignee.value, mobile: form.elements.mobile.value, sku: form.elements.sku.value,
+    qty: Number(form.elements.qty.value), cents: Math.round(Number(form.elements.price.value) * 100) };
+  const signature = JSON.stringify(input);
+  if (releaseAttempt?.signature !== signature) releaseAttempt = { signature, id: crypto.randomUUID() };
+  el('consignment-save').disabled = true;
+  setNotice('consignment-status', 'Saving…', 'info');
+  google.script.run.withSuccessHandler(() => {
+    releaseAttempt = undefined;
+    el('consignment-save').disabled = false;
+    form.reset();
+    renderConsignmentProducts();
+    setNotice('consignment-status', 'Release recorded.', 'ok');
+    refresh();
+  }).withFailureHandler(error => {
+    el('consignment-save').disabled = false;
+    setNotice('consignment-status', error.message, 'error');
+  }).releaseConsignment({ ...input, id: releaseAttempt.id });
+});
 
 // ---------- Special sales admin ----------
 const specialForm = el('special-form');
