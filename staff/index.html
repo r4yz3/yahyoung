@@ -2,6 +2,29 @@
 <html lang="en">
 <head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#09234d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Yahyoung POS">
+<link rel="icon" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../icon-192.png">
+<style>
+#install-app { position: fixed; z-index: 70; top: 12px; right: 16px; padding: .45rem .9rem; border: 1px solid #c9a24a; border-radius: 99px; background: #09234d; color: #f6d98b; font: 600 .85rem system-ui, sans-serif; cursor: pointer; box-shadow: 0 6px 18px rgba(9, 35, 77, .25); }
+</style>
+<script>
+if ('serviceWorker' in navigator) addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  if (document.getElementById('install-app')) return;
+  const button = document.createElement('button');
+  button.id = 'install-app';
+  button.type = 'button';
+  button.textContent = 'Install app';
+  button.onclick = () => { button.remove(); event.prompt(); };
+  document.body.append(button);
+});
+addEventListener('appinstalled', () => { document.getElementById('install-app')?.remove(); });
+</script>
 <style>
 #sign-in { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: #09234d; }
 #sign-in[hidden] { display: none; }
@@ -37,6 +60,15 @@ const staffAuth = (() => {
     waiting = [];
   };
   const expire = () => { token = ''; write(''); };
+  const hasOfflineDesk = () => { try { return !!localStorage.getItem('yy_offline_desk'); } catch { return false; } };
+  const offlineError = () => Object.assign(new Error('You are offline.'), { offline: true });
+  // Offline there is no way to reach Google, so the app opens from what this device saved.
+  const continueOffline = () => {
+    document.getElementById('sign-in').hidden = true;
+    const pending = waiting;
+    waiting = [];
+    pending.forEach(resolve => resolve(''));
+  };
   const start = () => {
     const identity = window.google && window.google.accounts && window.google.accounts.id;
     if (!identity) return setTimeout(start, 200);
@@ -45,6 +77,10 @@ const staffAuth = (() => {
     if (!valid()) identity.prompt();
   };
   const signOut = () => {
+    let unsynced = 0;
+    try { unsynced = JSON.parse(localStorage.getItem('yy_offline_sales') || '[]').length; } catch {}
+    if (unsynced && !confirm(unsynced + ' sale(s) have not synced. They stay on this device until the same account signs in online. Sign out anyway?')) return;
+    try { localStorage.removeItem('yy_offline_desk'); } catch {}
     expire();
     const identity = window.google && window.google.accounts && window.google.accounts.id;
     if (identity) identity.disableAutoSelect();
@@ -53,9 +89,12 @@ const staffAuth = (() => {
   addEventListener('DOMContentLoaded', () => {
     const panel = document.createElement('div');
     panel.id = 'sign-in';
-    panel.hidden = valid();
-    panel.innerHTML = '<div><h1>Yahyoung POS</h1><p>Sign in with the Google account your owner added to Staff access.</p><div id="sign-in-button"></div></div>';
+    panel.hidden = valid() || (!navigator.onLine && hasOfflineDesk());
+    panel.innerHTML = '<div><h1>Yahyoung POS</h1><p>Sign in with the Google account your owner added to Staff access.</p><div id="sign-in-button"></div><button type="button" id="sign-in-offline" class="secondary" hidden>Continue offline</button></div>';
     document.body.append(panel);
+    const offlineButton = document.getElementById('sign-in-offline');
+    offlineButton.hidden = !hasOfflineDesk();
+    offlineButton.onclick = continueOffline;
     const out = document.createElement('button');
     out.id = 'sign-out';
     out.type = 'button';
@@ -64,7 +103,7 @@ const staffAuth = (() => {
     document.getElementById('role').after(out);
     start();
   });
-  return { ready, expire };
+  return { ready, expire, offlineError };
 })();
 
 const google = { script: { get run() {
@@ -73,10 +112,15 @@ const google = { script: { get run() {
   const invoke = async (action, input) => {
     try {
       for (let attempt = 0; ; attempt++) {
+        if (!navigator.onLine) throw staffAuth.offlineError();
         const token = await staffAuth.ready();
+        if (!token) throw staffAuth.offlineError();
         // credentials: 'omit' keeps the browser's other Google accounts out of the request.
-        const response = await fetch(api, { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ token, action, input }) });
-        const reply = await response.json();
+        let reply;
+        try {
+          const response = await fetch(api, { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ token, action, input }) });
+          reply = await response.json();
+        } catch { throw staffAuth.offlineError(); }
         if (reply.error === 'SIGN_IN' && attempt < 1) { staffAuth.expire(); continue; }
         if (reply.error) throw new Error(reply.error === 'SIGN_IN' ? 'Please sign in again.' : reply.error);
         return success(reply.result);
@@ -87,7 +131,7 @@ const google = { script: { get run() {
     withSuccessHandler(fn) { success = fn; return this; },
     withFailureHandler(fn) { failure = fn; return this; }
   };
-  for (const action of ['loadDesk', 'listOrders', 'updateOrderStatus', 'deliveryRate', 'saveDeliveryRate', 'listStaff', 'saveStaff', 'listAdminProducts', 'saveProduct', 'postSale', 'postExpense', 'linkBirReference']) {
+  for (const action of ['loadDesk', 'listOrders', 'updateOrderStatus', 'deliveryRate', 'saveDeliveryRate', 'listStaff', 'saveStaff', 'listAdminProducts', 'saveProduct', 'listSpecialSales', 'saveSpecialSale', 'postSale', 'postExpense', 'linkBirReference']) {
     handlers[action] = input => { invoke(action, input); };
   }
   return handlers;
@@ -333,6 +377,21 @@ dialog h2 { font-size: 1.25rem; margin-bottom: .75rem; }
 .order-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 .order-head strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .order-tags { display: flex; flex-wrap: wrap; gap: .35rem; }
+.price-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; margin-bottom: .75rem; }
+.price-was { margin-right: .35rem; color: var(--muted); font-weight: 400; text-decoration: line-through; }
+.badge.sale { margin-left: .4rem; background: var(--navy); color: #f6d98b; letter-spacing: .03em; }
+.product.on-special { border-color: #c9a24a; }
+.special-products { margin: 1rem 0 0; padding: 0; border: 0; }
+.special-products legend { padding: 0; font-weight: 600; font-size: .875rem; }
+#special-skus { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+#special-skus label { display: flex; align-items: center; gap: .45rem; padding: .45rem .7rem; border: 1px solid var(--line-strong); border-radius: 99px; font-size: .875rem; cursor: pointer; }
+#special-skus label:has(:checked) { background: var(--tint); border-color: var(--blue); }
+#special-skus input { width: auto; margin: 0; }
+#special-list .card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-top: .75rem; }
+#special-list .special-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+#offline-bar { position: fixed; z-index: 60; left: 50%; bottom: calc(var(--tabbar) + 12px); transform: translateX(-50%); display: flex; align-items: center; gap: .75rem; width: max-content; max-width: calc(100vw - 32px); padding: .55rem 1rem; border-radius: 99px; background: var(--navy); color: white; font-size: .875rem; box-shadow: 0 8px 24px rgba(9, 35, 77, .28); }
+#offline-bar .link { color: #f6d98b; }
+@media (min-width: 900px) { #offline-bar { bottom: 16px; } }
 .badge.neutral { background: var(--tint); color: var(--navy-2); }
 .order-meta { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .1rem .75rem; margin: 0; font-size: .85rem; }
 .order-meta dt { color: var(--muted); }
@@ -484,6 +543,7 @@ dialog h2 { font-size: 1.25rem; margin-bottom: .75rem; }
 <button type="button" id="nav-more" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16 M4 12h16 M4 17h16"/></svg><span>More</span></button>
 <button type="button" data-view="expenses" id="expenses-link"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6"/></svg><span>Expenses</span></button>
 <button type="button" data-view="products-admin"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 9 5v8l-9 5-9-5V8z M3 8l9 5 9-5 M12 13v8"/></svg><span>Products</span></button>
+<button type="button" data-view="special-admin"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z M7.5 8.5h.01"/></svg><span>Special sales</span></button>
 <button type="button" data-view="staff-admin"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M2 21a7 7 0 0 1 14 0 M16 3.5a4 4 0 0 1 0 7 M18 14.5a7 7 0 0 1 4 6.5"/></svg><span>Staff access</span></button>
 <button type="button" data-view="analytics"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4v16h18 M6 15l5-5 4 3 5-7"/></svg><span>Analytics</span></button>
 <button type="button" data-view="finance" id="finance-link"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16 M7 16v-4 M12 16V8 M17 16V4"/></svg><span>Finance</span></button>
@@ -521,7 +581,10 @@ dialog h2 { font-size: 1.25rem; margin-bottom: .75rem; }
 <div class="sale-main">
 <div class="card">
 <h2 style="margin-bottom:.6rem">Products</h2>
+<div class="price-controls">
 <label>Price tier<select id="pricing-tier"><option>Retail</option><option>Reseller</option></select></label>
+<label id="special-field" hidden>Special sale<select id="special-sale"></select></label>
+</div>
 <div id="products"></div>
 </div>
 <div class="card fields">
@@ -621,6 +684,24 @@ dialog h2 { font-size: 1.25rem; margin-bottom: .75rem; }
 <p id="product-status" class="notice info" role="status"></p>
 <ul id="product-admin-list"></ul>
 </section>
+<section id="special-admin" class="view" hidden>
+<div class="page-head"><div><h1 tabindex="-1">Special sales</h1><p>Create limited offers. A cashier applies one to a sale at checkout, so regular prices stay unchanged.</p></div></div>
+<form id="special-form" class="card">
+<h2 id="special-form-title">New special sale</h2>
+<div class="filters">
+<label>Name<input name="name" required maxlength="60" placeholder="Summer barangay event"></label>
+<label>Discount type<select name="type"><option value="Percent">Percent off</option><option value="Amount">Pesos off per bag</option></select></label>
+<label>Discount<input name="value" type="number" min="0.01" step="0.01" required></label>
+</div>
+<fieldset class="special-products"><legend>Applies to</legend><div id="special-skus"></div></fieldset>
+<div class="form-foot">
+<button class="primary">Save special sale</button>
+<button id="special-cancel" type="button" class="secondary" hidden>Cancel edit</button>
+</div>
+</form>
+<p id="special-status" class="notice info" role="status"></p>
+<ul id="special-list"></ul>
+</section>
 <section id="staff-admin" class="view" hidden>
 <div class="page-head"><div><h1 tabindex="-1">Staff access</h1><p>Choose who can open the POS and what they can do.</p></div></div>
 <form id="staff-form" class="card">
@@ -714,6 +795,7 @@ dialog h2 { font-size: 1.25rem; margin-bottom: .75rem; }
 <div id="more-items"></div>
 <button type="button" class="secondary" id="more-close">Close</button>
 </dialog>
+<div id="offline-bar" role="status" hidden><span id="offline-text"></span><button type="button" id="offline-sync" class="link">Sync now</button></div>
 <div id="toast" role="status"></div>
 </main>
 <script>
@@ -729,6 +811,10 @@ let available = [];
 let toastTimer;
 let deskRole;
 let birSale;
+let specialSales = [];
+let serverSales = [];
+let offlineMode = false;
+let deskEmail = '';
 const workspaces = {
   Owner: ['Owner overview', 'Monitor sales and payments across the team, or record a new sale.'],
   Cashier: ['Cashier desk', 'Record a sale and check your recent transactions.'],
@@ -1219,29 +1305,35 @@ el('analytics-reset').addEventListener('click', () => {
 });
 
 function render(desk) {
+  offlineMode = !!desk.offline;
+  deskEmail = desk.email;
+  if (!offlineMode) saveOfflineDesk(desk);
+  specialSales = desk.specialSales || [];
+  renderSpecialPicker();
   analyticsDays = desk.analytics || [];
   if (desk.analytics) renderAnalytics();
-  if (desk.role === 'Owner') google.script.run.withSuccessHandler(renderAdminProducts)
+  if (!offlineMode && desk.role === 'Owner') loadSpecialSales();
+  if (!offlineMode && desk.role === 'Owner') google.script.run.withSuccessHandler(renderAdminProducts)
     .withFailureHandler(error => { el('product-status').textContent = error.message; }).listAdminProducts();
-  if (desk.role === 'Owner') loadStaff();
+  if (!offlineMode && desk.role === 'Owner') loadStaff();
   el('delivery-panel').hidden = desk.role !== 'Owner';
-  if (desk.role === 'Owner') google.script.run.withSuccessHandler(cents => {
+  if (!offlineMode && desk.role === 'Owner') google.script.run.withSuccessHandler(cents => {
     el('delivery-rate').value = cents ? cents / 100 : '';
   }).deliveryRate();
   if (!el('order-queue').children.length) orderMessage('Loading orders…');
   deskRole = desk.role;
-  loadOrders();
+  if (!offlineMode) loadOrders();
   el('status').hidden = true;
   el('role').textContent = desk.role;
   el('role').hidden = false;
   catalog = desk.products;
   const selling = ['Owner','Cashier'].includes(desk.role);
   const canExpense = ['Owner', 'Bookkeeper'].includes(desk.role);
-  available = [
+  available = offlineMode ? ['checkout', 'history'] : [
     ...(desk.finance ? ['workspace'] : []),
     ...(selling ? ['checkout'] : []),
     'history', 'online-orders',
-    ...(desk.role === 'Owner' ? ['products-admin', 'staff-admin'] : []),
+    ...(desk.role === 'Owner' ? ['products-admin', 'special-admin', 'staff-admin'] : []),
     ...(desk.expenses ? ['expenses'] : []),
     ...(desk.finance ? ['finance', 'analytics'] : [])
   ];
@@ -1272,13 +1364,15 @@ function render(desk) {
       [date, category, payee, reference, peso(Number(amount))]
     ), 'No expenses recorded yet.');
   }
-  recentSales = desk.sales;
-  renderHistory();
+  serverSales = desk.sales;
+  mergeSales();
   if (desk.finance) renderOverview();
   updateTotal();
   const first = !currentView;
   const requestedView = currentView || location.hash.slice(1);
   showView(available.includes(requestedView) ? requestedView : available[0], !first);
+  updateOfflineBar();
+  if (!offlineMode) syncQueue();
 }
 
 function renderProducts() {
@@ -1295,7 +1389,16 @@ function renderProducts() {
     const label = document.createElement('label');
     label.textContent = product.name;
     const price = document.createElement('small');
-    price.textContent = unitPrice(product) ? peso(unitPrice(product) / 100) + ' per bag' : 'Reseller price unavailable';
+    const discounted = unitPrice(product) && unitPrice(product) !== product.cents && el('pricing-tier').value === 'Retail';
+    if (discounted) {
+      const was = document.createElement('span');
+      was.className = 'price-was';
+      was.textContent = peso(product.cents / 100);
+      price.append(was);
+      row.classList.add('on-special');
+    }
+    price.append(unitPrice(product) ? peso(unitPrice(product) / 100) + ' per bag' : 'Reseller price unavailable');
+    if (discounted) price.append(Object.assign(document.createElement('span'), { className: 'badge sale', textContent: 'SALE' }));
     label.append(price);
     const qty = document.createElement('input');
     qty.type = 'number';
@@ -1477,7 +1580,6 @@ function openBirDialog(sale) {
   const summary = el('bir-sale');
   summary.replaceChildren();
   receiptRow(summary, 'Sale', shortRef(sale.invoice));
-  receiptRow(summary, 'Price tier', data.pricing);
   receiptRow(summary, 'Customer', sale.customer);
   receiptRow(summary, 'Total', peso(sale.total));
   el('bir-reference').value = sale.birReference || '';
@@ -1524,22 +1626,42 @@ function renderHistory() {
   el('due-card').classList.toggle('attention', matching.some(sale => sale.balance > 0));
   el('result-count').textContent = matching.length + (matching.length === 1 ? ' sale' : ' sales');
   renderTable('sales', [['Date'], ['Reference'], ['BIR doc'], ['Customer'], ['Method'], ['Total', 'right'], ['Status', 'right']],
-    matching.map(sale => [sale.date, shortRef(sale.invoice), birCell(sale), sale.customer, sale.method, peso(sale.total), balanceBadge(sale)]),
+    matching.map(sale => [sale.date, shortRef(sale.invoice), birCell(sale), sale.customer + (sale.special ? ' · ' + sale.special : '') + (sale.note ? ' · ' + sale.note : ''), sale.method, peso(sale.total), balanceBadge(sale)]),
     recentSales.length ? 'No sales match this view.' : 'No sales recorded yet.');
 }
 for (const id of ['search', 'filter', 'balance']) el(id).addEventListener('input', renderHistory);
 
 function selectedMethod() { return document.querySelector('input[name="method"]:checked').value; }
+function selectedSpecial() { return specialSales.find(sale => sale.id === el('special-sale').value); }
 function unitPrice(product) {
-  return el('pricing-tier').value === 'Reseller' ? product.resellerCents : product.cents;
+  if (el('pricing-tier').value === 'Reseller') return product.resellerCents;
+  return selectedSpecial()?.prices[product.sku] ?? product.cents;
+}
+function renderSpecialPicker() {
+  const select = el('special-sale');
+  const current = select.value;
+  select.replaceChildren(new Option('None (regular price)', ''), ...specialSales.map(sale =>
+    new Option(sale.name + ' · ' + (sale.type === 'Percent' ? sale.value + '% off' : peso(sale.value) + ' off'), sale.id)));
+  select.value = specialSales.some(sale => sale.id === current) ? current : '';
+  syncSpecialField();
+}
+function syncSpecialField() {
+  const retail = el('pricing-tier').value === 'Retail';
+  el('special-field').hidden = !specialSales.length || !retail;
+  if (!retail) el('special-sale').value = '';
 }
 el('pricing-tier').addEventListener('change', () => {
   cart = {};
+  syncSpecialField();
+  renderProducts();
+  updateTotal();
+});
+el('special-sale').addEventListener('change', () => {
   renderProducts();
   updateTotal();
 });
 function items() {
-  return catalog.map(product => ({ sku: product.sku, cents: unitPrice(product), qty: cart[product.sku] || 0 })).filter(item => item.qty > 0);
+  return catalog.map(product => ({ sku: product.sku, name: product.name, cents: unitPrice(product), qty: cart[product.sku] || 0 })).filter(item => item.qty > 0);
 }
 function total() { return items().reduce((sum, item) => sum + item.cents * item.qty, 0) / 100; }
 function updateTotal() {
@@ -1564,6 +1686,7 @@ function updateTotal() {
 function saleError(text) { setNotice('sale-status', text, 'error'); }
 function clearSaleError() { saleError(''); }
 function refresh() { google.script.run.withSuccessHandler(render).withFailureHandler(error => {
+  if (error.offline && (offlineMode || openOffline())) return updateOfflineBar();
   if (currentView) notify(error.message); else showLoadError(error.message);
 }).loadDesk(); }
 el('form').addEventListener('input', () => { clearSaleError(); updateTotal(); });
@@ -1580,13 +1703,16 @@ function receiptRow(list, label, value, grand) {
 el('form').addEventListener('submit', event => {
   event.preventDefault();
   if (items().some(item => !item.cents)) return saleError('Remove items without a reseller price.');
-  const data = { pricing: el('pricing-tier').value, customer: el('customer').value, method: selectedMethod(), items: items() };
+  const special = selectedSpecial();
+  const data = { pricing: el('pricing-tier').value, customer: el('customer').value, method: selectedMethod(), items: items(),
+    ...(special ? { specialSaleId: special.id, specialSaleName: special.name } : {}) };
   if (!data.items.length) return saleError('Add a product before posting.');
   clearSaleError();
   draft = data;
   const summary = el('sale-summary');
   summary.replaceChildren();
   receiptRow(summary, 'Price tier', data.pricing);
+  if (special) receiptRow(summary, 'Special sale', special.name);
   receiptRow(summary, 'Customer', data.customer.trim() || 'Walk-in');
   receiptRow(summary, 'Payment', data.method);
   el('sale-lines').replaceChildren();
@@ -1610,24 +1736,207 @@ el('confirm-sale').addEventListener('close', () => {
   if (el('confirm-sale').returnValue !== 'post' || !data) return;
   const signature = JSON.stringify(data);
   if (pending?.signature !== signature) pending = { signature, id: crypto.randomUUID() };
-  el('submit').disabled = true;
-  el('submit').textContent = 'Posting…';
-  google.script.run.withSuccessHandler(() => {
-    const posted = shortRef('POS-' + pending.id.toUpperCase());
+  const finish = message => {
     pending = undefined;
     cart = {};
     el('form').reset();
     el('submit').textContent = 'Review sale';
     el('submit').disabled = false;
-    catalog.forEach((_, index) => { el('qty-' + index).value = 0; });
+    syncSpecialField();
+    renderProducts();
     updateTotal();
-    notify('Sale ' + posted + ' recorded.');
+    notify(message);
+  };
+  const queueSale = () => {
+    const posted = shortRef('POS-' + pending.id.toUpperCase());
+    if (!enqueue({ ...data, id: pending.id, offlineAt: new Date().toISOString(), email: deskEmail })) {
+      el('submit').textContent = 'Review sale';
+      el('submit').disabled = false;
+      return saleError('This device could not save the sale. Do not hand over the order until it is recorded.');
+    }
+    finish('Sale ' + posted + ' saved on this device. It will sync when you are back online.');
+    mergeSales();
+    updateOfflineBar();
+  };
+  if (offlineMode || !navigator.onLine) return queueSale();
+  el('submit').disabled = true;
+  el('submit').textContent = 'Posting…';
+  google.script.run.withSuccessHandler(() => {
+    finish('Sale ' + shortRef('POS-' + pending.id.toUpperCase()) + ' recorded.');
     refresh();
   }).withFailureHandler(error => {
+    // The sale ID is kept, so if this request did reach the server, syncing cannot record it twice.
+    if (error.offline) return queueSale();
     el('submit').textContent = 'Review sale';
     el('submit').disabled = false;
     saleError(error.message);
   }).postSale({ ...data, id: pending.id });
+});
+
+const QUEUE_KEY = 'yy_offline_sales';
+const DESK_KEY = 'yy_offline_desk';
+function readStore(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+}
+function queue() { return readStore(QUEUE_KEY, []); }
+function writeQueue(entries) {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(entries)); return true; } catch { return false; }
+}
+function enqueue(entry) { return writeQueue([...queue().filter(sale => sale.id !== entry.id), entry]); }
+// Only what selling needs is kept on the device. Finance and customer records are not.
+function saveOfflineDesk(desk) {
+  try {
+    if (['Owner', 'Cashier'].includes(desk.role)) {
+      localStorage.setItem(DESK_KEY, JSON.stringify({ role: desk.role, email: desk.email, products: desk.products, specialSales: desk.specialSales }));
+    } else localStorage.removeItem(DESK_KEY);
+  } catch {}
+}
+function openOffline() {
+  const saved = readStore(DESK_KEY, null);
+  if (!saved) return false;
+  el('status').hidden = true;
+  render({ ...saved, offline: true, workbookUrl: null, expenses: null, finance: null, analytics: null, sales: [] });
+  return true;
+}
+function mergeSales() {
+  const known = new Set(serverSales.map(sale => sale.id));
+  const waiting = queue().filter(sale => sale.email === deskEmail && !known.has(sale.id)).reverse().map(sale => {
+    const total = sale.items.reduce((sum, item) => sum + item.cents * item.qty, 0) / 100;
+    const paid = sale.method === 'Credit' ? 0 : total;
+    return { id: sale.id, date: new Date(sale.offlineAt).toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).slice(0, 16), birReference: '', customer: sale.customer.trim() || 'Walk-in', invoice: 'POS-' + sale.id.toUpperCase(),
+      method: sale.method, total, paid, balance: total - paid };
+  });
+  recentSales = [...waiting, ...serverSales];
+  renderHistory();
+  if (el('overview-recent').children.length || !offlineMode) renderOverview();
+}
+function updateOfflineBar() {
+  const mine = queue().filter(sale => sale.email === deskEmail);
+  const failed = mine.filter(sale => sale.error).length;
+  const count = mine.length;
+  el('offline-bar').hidden = !offlineMode && !count;
+  el('offline-sync').hidden = !count || !navigator.onLine;
+  el('offline-text').textContent = (offlineMode ? 'Offline. ' : '') +
+    (failed ? failed + ' sale' + (failed === 1 ? '' : 's') + ' could not sync: ' + mine.find(sale => sale.error).error
+      : count ? count + ' sale' + (count === 1 ? '' : 's') + ' waiting to sync.' : 'New sales are saved on this device.');
+}
+let syncing = false;
+function syncQueue() {
+  if (syncing || offlineMode || !navigator.onLine) return;
+  const next = queue().filter(sale => sale.email === deskEmail);
+  if (!next.length) return;
+  syncing = true;
+  let done = 0;
+  const finished = () => {
+    syncing = false;
+    updateOfflineBar();
+    if (done) {
+      notify(done + (done === 1 ? ' offline sale' : ' offline sales') + ' synced.');
+      refresh();
+    } else mergeSales();
+  };
+  const step = index => {
+    if (index >= next.length) return finished();
+    const { email, error, ...sale } = next[index];
+    google.script.run.withSuccessHandler(() => {
+      writeQueue(queue().filter(entry => entry.id !== sale.id));
+      done++;
+      step(index + 1);
+    }).withFailureHandler(failure => {
+      if (failure.offline) return finished();
+      writeQueue(queue().map(entry => entry.id === sale.id ? { ...entry, error: failure.message } : entry));
+      step(index + 1);
+    }).postSale(sale);
+  };
+  step(0);
+}
+el('offline-sync').addEventListener('click', syncQueue);
+addEventListener('online', () => { if (offlineMode) refresh(); else syncQueue(); updateOfflineBar(); });
+addEventListener('offline', updateOfflineBar);
+setInterval(syncQueue, 60000);
+
+// ---------- Special sales admin ----------
+const specialForm = el('special-form');
+let specialAdmin = [];
+let specialEditing = '';
+function resetSpecialForm() {
+  specialForm.reset();
+  specialEditing = '';
+  el('special-form-title').textContent = 'New special sale';
+  el('special-cancel').hidden = true;
+  renderSpecialSkus([]);
+}
+function renderSpecialSkus(selected) {
+  el('special-skus').replaceChildren(...catalog.map(product => {
+    const label = document.createElement('label');
+    const box = Object.assign(document.createElement('input'), { type: 'checkbox', value: product.sku, checked: selected.includes(product.sku) });
+    label.append(box, product.name + ' · ' + peso(product.cents / 100));
+    return label;
+  }));
+}
+function loadSpecialSales() {
+  google.script.run.withSuccessHandler(sales => {
+    specialAdmin = sales;
+    if (!specialEditing) renderSpecialSkus([...el('special-skus').querySelectorAll(':checked')].map(box => box.value));
+    renderSpecialAdmin();
+  }).withFailureHandler(error => setNotice('special-status', error.message, 'error')).listSpecialSales();
+}
+function persistSpecial(input, message) {
+  setNotice('special-status', 'Saving…', 'info');
+  google.script.run.withSuccessHandler(() => {
+    setNotice('special-status', message, 'ok');
+    resetSpecialForm();
+    refresh();
+  }).withFailureHandler(error => setNotice('special-status', error.message, 'error')).saveSpecialSale(input);
+}
+function renderSpecialAdmin() {
+  if (!specialAdmin.length) return renderReportLines('special-list', ['No special sales yet. Create one above when you have an offer.']);
+  el('special-list').replaceChildren(...specialAdmin.map(sale => {
+    const row = document.createElement('li');
+    row.className = 'card';
+    const info = document.createElement('div');
+    info.className = 'product-info';
+    const title = document.createElement('h3');
+    title.append(sale.name + ' ', Object.assign(document.createElement('span'), { className: 'badge ' + (sale.active ? 'paid' : 'neutral'), textContent: sale.active ? 'Available at checkout' : 'Paused' }));
+    const detail = document.createElement('p');
+    const names = sale.skus.map(sku => catalog.find(product => product.sku === sku)?.name || sku);
+    detail.textContent = (sale.type === 'Percent' ? sale.value + '% off' : peso(sale.value) + ' off per bag') + ' · ' + names.join(', ');
+    info.append(title, detail);
+    const actions = document.createElement('div');
+    actions.className = 'special-actions';
+    const button = (text, handler) => {
+      const item = Object.assign(document.createElement('button'), { type: 'button', className: 'secondary', textContent: text });
+      item.addEventListener('click', handler);
+      actions.append(item);
+    };
+    button(sale.active ? 'Pause' : 'Activate', () => persistSpecial({ id: sale.id, active: !sale.active }, sale.name + (sale.active ? ' paused.' : ' is available at checkout.')));
+    button('Edit', () => {
+      specialEditing = sale.id;
+      specialForm.elements.name.value = sale.name;
+      specialForm.elements.type.value = sale.type;
+      specialForm.elements.value.value = sale.value;
+      renderSpecialSkus(sale.skus);
+      el('special-form-title').textContent = 'Edit special sale';
+      el('special-cancel').hidden = false;
+      specialForm.elements.name.focus();
+    });
+    button('Delete', () => {
+      if (confirm('Delete ' + sale.name + '? Past sales keep their record.')) persistSpecial({ id: sale.id, remove: true }, sale.name + ' deleted.');
+    });
+    row.append(info, actions);
+    return row;
+  }));
+}
+el('special-cancel').addEventListener('click', resetSpecialForm);
+specialForm.addEventListener('submit', event => {
+  event.preventDefault();
+  const skus = [...el('special-skus').querySelectorAll(':checked')].map(box => box.value);
+  const current = specialAdmin.find(sale => sale.id === specialEditing);
+  persistSpecial({
+    id: specialEditing || crypto.randomUUID(), edit: !!specialEditing,
+    name: specialForm.elements.name.value, type: specialForm.elements.type.value, value: Number(specialForm.elements.value.value), skus,
+    active: current ? current.active : true
+  }, 'Special sale saved.');
 });
 refresh();
 </script>
