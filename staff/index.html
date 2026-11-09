@@ -140,7 +140,7 @@ const google = { script: { get run() {
     withSuccessHandler(fn) { success = fn; return this; },
     withFailureHandler(fn) { failure = fn; return this; }
   };
-  for (const action of ['loadDesk', 'revokeSessions', 'listOrders', 'updateOrderStatus', 'deliveryRate', 'saveDeliveryRate', 'listStaff', 'saveStaff', 'listAdminProducts', 'saveProduct', 'listSpecialSales', 'saveSpecialSale', 'listConsignments', 'releaseConsignment', 'returnConsignment', 'payConsignment', 'postSale', 'postExpense', 'linkBirReference']) {
+  for (const action of ['loadDesk', 'revokeSessions', 'listOrders', 'updateOrderStatus', 'deliveryRate', 'saveDeliveryRate', 'listStaff', 'saveStaff', 'listAdminProducts', 'saveProduct', 'listSpecialSales', 'saveSpecialSale', 'listConsignments', 'releaseConsignment', 'returnConsignment', 'payConsignment', 'postSale', 'deleteSale', 'postExpense', 'linkBirReference']) {
     handlers[action] = input => { invoke(action, input); };
   }
   return handlers;
@@ -892,6 +892,13 @@ tbody tr { transition: background-color .12s; }
 <p id="bir-status" class="notice" role="alert" style="margin-top:.6rem"></p>
 <div class="actions"><button type="button" class="secondary" id="bir-cancel">Cancel</button><button id="bir-save" class="primary">Link document</button></div>
 </form>
+</dialog>
+<dialog id="delete-sale" aria-labelledby="delete-title">
+<h2 id="delete-title">Delete this sale?</h2>
+<dl class="receipt" id="delete-summary" style="margin:0 0 .75rem"></dl>
+<p class="muted small" id="delete-warning"></p>
+<p id="delete-status" class="notice" role="alert" style="margin-top:.6rem"></p>
+<div class="actions"><button type="button" class="secondary" id="delete-keep" autofocus>Keep sale</button><button type="button" class="danger" id="delete-confirm">Delete sale</button></div>
 </dialog>
 <dialog id="cancel-order" aria-labelledby="cancel-title">
 <h2 id="cancel-title">Cancel this order?</h2>
@@ -1753,6 +1760,50 @@ el('bir-link').addEventListener('submit', event => {
   }).linkBirReference({ id: birSale.id, reference: el('bir-reference').value });
 });
 
+let deletingSale;
+function deleteCell(sale) {
+  // Sales still waiting on this device have nothing on the server to delete yet.
+  if (offlineMode || !serverSales.some(entry => entry.id === sale.id)) return '–';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'link';
+  button.style.color = 'var(--red)';
+  button.textContent = 'Delete';
+  button.setAttribute('aria-label', 'Delete sale ' + shortRef(sale.invoice));
+  button.addEventListener('click', () => openDeleteDialog(sale));
+  return button;
+}
+function openDeleteDialog(sale) {
+  deletingSale = sale;
+  const summary = el('delete-summary');
+  summary.replaceChildren();
+  receiptRow(summary, 'Date', sale.date);
+  receiptRow(summary, 'Sale', shortRef(sale.invoice));
+  receiptRow(summary, 'Customer', sale.customer);
+  receiptRow(summary, 'Total', peso(sale.total));
+  const warnings = ['This removes it from your sales and totals. A copy stays in the DeletedSales tab of the spreadsheet.'];
+  if (sale.birReference) warnings.push('BIR document ' + sale.birReference + ' is linked to this sale.');
+  if (String(sale.note || '').startsWith('Consignment ')) warnings.push('This is a consignment payment, so the amount goes back onto that balance.');
+  warnings.push('If it came from an online order, that order stays marked Completed.');
+  el('delete-warning').textContent = warnings.join(' ');
+  setNotice('delete-status', '');
+  el('delete-confirm').disabled = false;
+  el('delete-sale').showModal();
+}
+el('delete-keep').addEventListener('click', () => el('delete-sale').close());
+el('delete-confirm').addEventListener('click', () => {
+  el('delete-confirm').disabled = true;
+  setNotice('delete-status', 'Deleting…', 'info');
+  google.script.run.withSuccessHandler(() => {
+    el('delete-sale').close();
+    notify('Sale ' + shortRef(deletingSale.invoice) + ' deleted.');
+    refresh();
+  }).withFailureHandler(error => {
+    el('delete-confirm').disabled = false;
+    setNotice('delete-status', error.offline ? 'You are offline. Connect to the internet to delete a sale.' : error.message, 'error');
+  }).deleteSale({ id: deletingSale.id });
+});
+
 function renderHistory() {
   const query = el('search').value.trim().toLowerCase();
   const method = el('filter').value;
@@ -1767,8 +1818,8 @@ function renderHistory() {
   }
   el('due-card').classList.toggle('attention', matching.some(sale => sale.balance > 0));
   el('result-count').textContent = matching.length + (matching.length === 1 ? ' sale' : ' sales');
-  renderTable('sales', [['Date'], ['Reference'], ['BIR doc'], ['Customer'], ['Method'], ['Total', 'right'], ['Status', 'right']],
-    matching.map(sale => [sale.date, shortRef(sale.invoice), birCell(sale), sale.customer + (sale.special ? ' · ' + sale.special : '') + (sale.note ? ' · ' + sale.note : ''), sale.method, peso(sale.total), balanceBadge(sale)]),
+  renderTable('sales', [['Date'], ['Reference'], ['BIR doc'], ['Customer'], ['Method'], ['Total', 'right'], ['Status', 'right'], ...(deskRole === 'Owner' ? [['Action', 'right']] : [])],
+    matching.map(sale => [sale.date, shortRef(sale.invoice), birCell(sale), sale.customer + (sale.special ? ' · ' + sale.special : '') + (sale.note ? ' · ' + sale.note : ''), sale.method, peso(sale.total), balanceBadge(sale), ...(deskRole === 'Owner' ? [deleteCell(sale)] : [])]),
     recentSales.length ? 'No sales match this view.' : 'No sales recorded yet.');
 }
 for (const id of ['search', 'filter', 'balance']) el(id).addEventListener('input', renderHistory);
