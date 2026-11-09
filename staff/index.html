@@ -600,6 +600,13 @@ tbody tr { transition: background-color .12s; }
   #consignment-list .consignment-actions { justify-content: stretch; }
   #consignment-list .consignment-actions button { flex: 1; }
 }
+.sheet-link { display: flex; align-items: center; text-decoration: none; font-weight: 600; border-radius: 10px; }
+#sheet-link { gap: .65rem; min-height: 42px; margin-top: .5rem; padding: .5rem 1rem; border: 1px solid #ffffff40; color: #f6d98b; }
+#sheet-link:hover { background: #ffffff14; }
+#sheet-link svg, #more-items .sheet-link svg { width: 20px; height: 20px; flex: none; }
+#sheet-link:focus-visible, #more-items .sheet-link:focus-visible { outline: 3px solid #2684ff; outline-offset: 2px; }
+#more-items .sheet-link { gap: .85rem; min-height: 52px; padding: .5rem 1rem; color: var(--ink); }
+@media (max-width: 859px) { #sheet-link { display: none; } }
 .workbook-link:not([hidden]) { display: inline-flex; align-items: center; min-height: 44px; padding: .55rem .85rem; border: 1px solid var(--line); border-radius: 10px; background: white; font-weight: 650; text-decoration: none; }
 </style>
 </head>
@@ -627,6 +634,7 @@ tbody tr { transition: background-color .12s; }
 <button type="button" data-view="staff-admin"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M2 21a7 7 0 0 1 14 0 M16 3.5a4 4 0 0 1 0 7 M18 14.5a7 7 0 0 1 4 6.5"/></svg><span>Staff access</span></button>
 <button type="button" data-view="analytics"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4v16h18 M6 15l5-5 4 3 5-7"/></svg><span>Analytics</span></button>
 <button type="button" data-view="finance" id="finance-link"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16 M7 16v-4 M12 16V8 M17 16V4"/></svg><span>Finance</span></button>
+<a class="sheet-link" id="sheet-link" target="_blank" rel="noopener noreferrer" hidden><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 4h16v16H4z M4 10h16 M4 15h16 M10 10v10"/></svg><span>Edit spreadsheet</span></a>
 </nav>
 </div>
 </header>
@@ -1460,6 +1468,14 @@ function render(desk) {
   ];
   document.querySelectorAll('#nav button[data-view]').forEach(button => { button.hidden = !available.includes(button.dataset.view); });
   buildMoreMenu();
+  const sheetLink = el('sheet-link');
+  sheetLink.hidden = !desk.workbookUrl;
+  if (desk.workbookUrl) {
+    sheetLink.href = desk.workbookUrl;
+    const moreLink = sheetLink.cloneNode(true);
+    moreLink.removeAttribute('id');
+    el('more-items').append(moreLink);
+  }
   el('nav').hidden = false;
   const [title, description] = workspaces[desk.role];
   el('workspace-title').textContent = title;
