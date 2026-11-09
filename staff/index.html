@@ -677,6 +677,7 @@ tbody tr { transition: background-color .12s; }
 </div>
 <div class="card fields">
 <h2 style="grid-column:1/-1">Sale details</h2>
+<label id="sale-date-field" hidden>Sale date<input id="sale-date" type="date"><span class="hint">Change this only to record a past sale.</span></label>
 <label>Customer<input id="customer" maxlength="120" placeholder="Walk-in customer" autocomplete="off" aria-describedby="customer-hint"><span class="hint" id="customer-hint"></span></label>
 <fieldset>
 <legend>Payment method</legend>
@@ -1456,6 +1457,8 @@ function render(desk) {
   catalog = desk.products;
   renderConsignmentProducts();
   const selling = ['Owner','Cashier'].includes(desk.role);
+  el('sale-date-field').hidden = desk.role !== 'Owner';
+  if (!saleDatePicked) resetSaleDate();
   const canExpense = ['Owner', 'Bookkeeper'].includes(desk.role);
   available = offlineMode ? ['checkout', 'history'] : [
     ...(desk.finance ? ['workspace'] : []),
@@ -1842,17 +1845,32 @@ function receiptRow(list, label, value, grand) {
   row.append(term, detail);
   list.append(row);
 }
+const manilaToday = () => new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).slice(0, 10);
+// An untouched date follows the calendar, so a page left open overnight cannot backdate a sale.
+let saleDatePicked = false;
+function resetSaleDate() {
+  saleDatePicked = false;
+  el('sale-date').max = manilaToday();
+  el('sale-date').value = manilaToday();
+}
+el('sale-date').addEventListener('change', () => { saleDatePicked = true; });
 el('form').addEventListener('submit', event => {
   event.preventDefault();
+  if (!saleDatePicked) resetSaleDate();
+  const saleDate = deskRole === 'Owner' ? el('sale-date').value : manilaToday();
+  if (!saleDate) return saleError('Enter the sale date.');
+  if (saleDate > manilaToday()) return saleError('The sale date cannot be in the future.');
+  const backdated = saleDate !== manilaToday();
   if (items().some(item => !item.cents)) return saleError('Remove items without a reseller price.');
   const special = selectedSpecial();
   const data = { pricing: el('pricing-tier').value, customer: el('customer').value, method: selectedMethod(), items: items(),
-    ...(special ? { specialSaleId: special.id, specialSaleName: special.name } : {}) };
+    ...(special ? { specialSaleId: special.id, specialSaleName: special.name } : {}), ...(backdated ? { saleDate } : {}) };
   if (!data.items.length) return saleError('Add a product before posting.');
   clearSaleError();
   draft = data;
   const summary = el('sale-summary');
   summary.replaceChildren();
+  if (backdated) receiptRow(summary, 'Past sale date', new Date(saleDate + 'T12:00:00Z').toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }));
   receiptRow(summary, 'Price tier', data.pricing);
   if (special) receiptRow(summary, 'Special sale', special.name);
   receiptRow(summary, 'Customer', data.customer.trim() || 'Walk-in');
@@ -1882,6 +1900,7 @@ el('confirm-sale').addEventListener('close', () => {
     pending = undefined;
     cart = {};
     el('form').reset();
+    resetSaleDate();
     el('submit').textContent = 'Review sale';
     el('submit').disabled = false;
     syncSpecialField();
@@ -1945,7 +1964,7 @@ function mergeSales() {
   const waiting = queue().filter(sale => sale.email === deskEmail && !known.has(sale.id)).reverse().map(sale => {
     const total = sale.items.reduce((sum, item) => sum + item.cents * item.qty, 0) / 100;
     const paid = sale.method === 'Credit' ? 0 : total;
-    return { id: sale.id, date: new Date(sale.offlineAt).toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).slice(0, 16), birReference: '', customer: sale.customer.trim() || 'Walk-in', invoice: 'POS-' + sale.id.toUpperCase(),
+    return { id: sale.id, date: sale.saleDate ? sale.saleDate + ' 12:00' : new Date(sale.offlineAt).toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).slice(0, 16), birReference: '', customer: sale.customer.trim() || 'Walk-in', invoice: 'POS-' + sale.id.toUpperCase(),
       method: sale.method, total, paid, balance: total - paid };
   });
   recentSales = [...waiting, ...serverSales];
